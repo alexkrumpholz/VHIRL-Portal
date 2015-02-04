@@ -60,7 +60,7 @@ ntpdate "$NTP_DATE_SERVER"
 
 #Download our cloud storage tool wrapper and make it executable
 echo "Downloading wrapper script from ${CLOUD_STORAGE_WRAPPER_URL} and storing it at /bin/cloud"
-curl -L "${CLOUD_STORAGE_WRAPPER_URL}" > "/bin/cloud"
+curl -f -L "${CLOUD_STORAGE_WRAPPER_URL}" -o "/bin/cloud"
 echo "Making /bin/cloud executable"
 chmod +x "/bin/cloud"
 echo "chmod result $?"
@@ -73,7 +73,7 @@ echo "Storage wrapper configured to use: $STORAGE_TYPE"
 
 #next we download our AWS metadata script which allows us to fetch information
 #about our instance
-curl -L http://s3.amazonaws.com/ec2metadata/ec2-metadata > "${EC2_METADATA_SCRIPT}"
+curl -f -L http://s3.amazonaws.com/ec2metadata/ec2-metadata -o "${EC2_METADATA_SCRIPT}"
 chmod +x "${EC2_METADATA_SCRIPT}"
 
 echo "------ Printing SVN FILE INFO---------"
@@ -113,7 +113,7 @@ cd $WORKING_DIR
 
 #Download File Conversion Module
 echo "Downloading .nc to .asc conversion script from $FILECONVERSION_URL and storing it at $WORKFLOW_SCRIPT"
-curl -L "$FILECONVERSION_URL" > "$VHIRL_NCTOASC_CONVERSION_SCRIPT"
+curl -f -L "$FILECONVERSION_URL" -o "$VHIRL_NCTOASC_CONVERSION_SCRIPT"
 echo "curl result $?"
 
 #Next we can perform our actual work (make sure we indicate where the python logs start/finish)

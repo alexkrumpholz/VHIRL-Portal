@@ -59,9 +59,13 @@
         <property name="emailSender"><value><![CDATA[VHIRL Admin <noreply-cg-admin@csiro.au>]]></value></property>
         <property name="emailSubject" value="VHIRL Job (%s/%s)" />
     </bean>
-    
+
 
     <bean name="jobStatusLogReader" class="org.auscope.portal.server.vegl.VGLJobStatusAndLogReader" autowire="constructor"/>
+    <bean name="vhirlProvenanceService" class="org.auscope.portal.server.web.service.VHIRLProvenanceService" autowire="constructor">
+        <property name="promsUrl" value="${HOST.promsServiceUrl}" />
+    </bean>
+
     <bean name="VGLJobStatusChangeHandler" class="org.auscope.portal.server.web.service.monitor.VGLJobStatusChangeHandler" autowire="constructor"/>
 
     <bean name="jobStatusMonitor" class="org.auscope.portal.core.services.cloud.monitor.JobStatusMonitor">
@@ -82,9 +86,9 @@
             </map>
         </property>
     </bean>
-    
+
     <bean name="vglPollingJobQueueManagerDetail" class="org.springframework.scheduling.quartz.JobDetailBean">
-        <property name="jobClass" value="org.auscope.portal.server.vegl.VGLPollingJobQueueManager" />       
+        <property name="jobClass" value="org.auscope.portal.server.vegl.VGLPollingJobQueueManager" />
     </bean>
 
     <!-- Simple Trigger for vglJobStatusMonitor task, run every 5 minutes -->
@@ -93,7 +97,7 @@
         <property name="repeatInterval" value="300000" />
         <property name="startDelay" value="10000" />
     </bean>
-    
+
     <!-- Simple Trigger for vglPollingJobQueueManagerDetail task, run every 30 minutes -->
     <bean id="quotaExceededTrigger" class="org.springframework.scheduling.quartz.SimpleTriggerBean">
         <property name="jobDetail" ref="vglPollingJobQueueManagerDetail" />
@@ -238,6 +242,7 @@
         <constructor-arg name="endpoint" value="http://130.56.241.100:35357/v2.0/"/>
         <constructor-arg name="accessKey" value="${env.nci.nova.accesskey}"/>
         <constructor-arg name="secretKey" value="${env.nci.nova.secretkey}"/>
+        <property name="keypair" value="${env.nci.developer.keypair}"/>
         <property name="id" value="nci-openstack-compute"/>
         <property name="name" value="National Computing Infrastructure (Canberra)"/>
         <property name="groupName" value ="vl-#{inetAddress.hostName.toLowerCase()}"/>
@@ -268,6 +273,7 @@
         <constructor-arg name="endpoint" value="https://keystone.rc.nectar.org.au:5000/v2.0"/>
         <constructor-arg name="accessKey" value="${env.nectar.nova.accesskey}"/>
         <constructor-arg name="secretKey" value="${env.nectar.nova.secretkey}"/>
+        <property name="keypair" value="${env.nectar.developer.keypair}"/>
         <property name="id" value="necta:wr-openstack-compute"/>
         <property name="name" value="National eResearch Collaboration Tools and Resources"/>
         <property name="groupName" value ="vl-#{inetAddress.hostName.toLowerCase()}"/>
@@ -285,7 +291,8 @@
                     </property>
                 </bean>
                 <bean class="org.auscope.portal.server.vegl.VglMachineImage">
-                    <constructor-arg name="imageId" value="Melbourne/7fa567fb-24bb-412b-8c15-5002370ca199"/>
+                    <!-- <constructor-arg name="imageId" value="Melbourne/7fa567fb-24bb-412b-8c15-5002370ca199"/> -->
+                    <constructor-arg name="imageId" value="Melbourne/4f2315cf-e80b-470f-8df6-4f5347f95349"/>
                     <property name="name" value="ANUGA"/>
                     <property name="description"><value>A Centos 6 machine with ANUGA already installed.</value></property>
                     <property name="keywords">
@@ -310,7 +317,7 @@
         </property>
     </bean>
 
-    <bean id="fileStagingService" class="org.auscope.portal.core.services.cloud.FileStagingService">
+    <bean name="vhirlFileStagingService" class="org.auscope.portal.server.web.service.VHIRLFileStagingService">
         <constructor-arg name="stagingInformation">
             <bean class="org.auscope.portal.core.cloud.StagingInformation">
                 <constructor-arg name="stageInDirectory" value="${HOST.localStageInDir}"/>
@@ -354,11 +361,16 @@
                 <value>vgljobsauditlog.hbm.xml</value>
                 <value>vgldownload.hbm.xml</value>
                 <value>vglsignature.hbm.xml</value>
+                <value>scmentrysnapshot.hbm.xml</value>
             </list>
         </property>
         <property name="hibernateProperties">
             <value>hibernate.dialect=org.hibernate.dialect.HSQLDialect</value>
         </property>
+    </bean>
+
+    <bean id="vlScmSnapshotDao" class="org.auscope.portal.server.vegl.VLScmSnapshotDao">
+        <property name="sessionFactory" ref="veglSessionFactory"/>
     </bean>
 
 </beans>

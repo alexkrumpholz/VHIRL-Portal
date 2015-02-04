@@ -12,6 +12,8 @@ import java.util.Date;
 import java.util.Enumeration;
 import java.util.Iterator;
 import java.util.List;
+import java.util.ListIterator;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -39,6 +41,9 @@ import org.auscope.portal.server.vegl.VGLQueueJob;
 import org.auscope.portal.server.vegl.VglDownload;
 import org.auscope.portal.server.vegl.VglMachineImage;
 import org.auscope.portal.server.vegl.VglParameter.ParameterType;
+import org.auscope.portal.server.web.service.VHIRLFileStagingService;
+import org.auscope.portal.server.web.service.VHIRLProvenanceService;
+import org.auscope.portal.server.web.service.ScmEntryService;
 import org.auscope.portal.server.web.service.monitor.VGLJobStatusChangeHandler;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.propertyeditors.CustomDateEditor;
@@ -68,8 +73,10 @@ public class JobBuilderController extends BaseCloudController {
     private final Log logger = LogFactory.getLog(getClass());
 
     private VEGLJobManager jobManager;
-    private FileStagingService fileStagingService;
+    private FileStagingService vhirlFileStagingService;
     private VGLPollingJobQueueManager vglPollingJobQueueManager;
+    private VHIRLProvenanceService vhirlProvenanceService;
+    private ScmEntryService scmEntryService;
 
     public static final String STATUS_PENDING = "Pending";//VT:Request accepted by compute service
     public static final String STATUS_ACTIVE = "Active";//VT:Running
@@ -88,24 +95,26 @@ public class JobBuilderController extends BaseCloudController {
 
 
     @Autowired
-    public JobBuilderController(VEGLJobManager jobManager, FileStagingService fileStagingService,
+    public JobBuilderController(VEGLJobManager jobManager, VHIRLFileStagingService vhirlFileStagingService,
             PortalPropertyPlaceholderConfigurer hostConfigurer, CloudStorageService[] cloudStorageServices,
-            CloudComputeService[] cloudComputeServices,VGLJobStatusChangeHandler vglJobStatusChangeHandler,VGLPollingJobQueueManager vglPollingJobQueueManager) {
+            CloudComputeService[] cloudComputeServices,VGLJobStatusChangeHandler vglJobStatusChangeHandler,
+            VGLPollingJobQueueManager vglPollingJobQueueManager, ScmEntryService scmEntryService, VHIRLProvenanceService vhirlProvenanceService) {
         super(cloudStorageServices, cloudComputeServices,hostConfigurer);
         this.jobManager = jobManager;
-        this.fileStagingService = fileStagingService;
+        this.vhirlFileStagingService = vhirlFileStagingService;
         this.cloudStorageServices = cloudStorageServices;
         this.cloudComputeServices = cloudComputeServices;
         this.vglJobStatusChangeHandler=vglJobStatusChangeHandler;
         this.vglPollingJobQueueManager = vglPollingJobQueueManager;
+        this.vhirlProvenanceService =  vhirlProvenanceService; // new VHIRLProvenanceService(vhirlFileStagingService, cloudStorageServices);
+        this.scmEntryService = scmEntryService;
     }
 
 
     /**
      * Returns a JSON object containing a populated VEGLJob object.
      *
-     * @param request The servlet request
-     * @param response The servlet response
+     * @param jobId
      *
      * @return A JSON object with a data attribute containing a populated
      *         VEGLJob object and a success attribute.
@@ -137,8 +146,7 @@ public class JobBuilderController extends BaseCloudController {
      * Returns a JSON object containing an array of filenames and sizes which
      * are currently in the job's stage in directory.
      *
-     * @param request The servlet request
-     * @param response The servlet response
+     * @param jobId
      *
      * @return A JSON object with a files attribute which is an array of
      *         filenames.
@@ -158,7 +166,7 @@ public class JobBuilderController extends BaseCloudController {
         //Get our files
         StagedFile[] files = null;
         try {
-            files = fileStagingService.listStageInDirectoryFiles(job);
+            files = vhirlFileStagingService.listStageInDirectoryFiles(job);
         } catch (Exception ex) {
             logger.error("Error listing job stage in directory", ex);
             return generateJSONResponseMAV(false, null, "Error reading job stage in directory");
@@ -190,7 +198,7 @@ public class JobBuilderController extends BaseCloudController {
 
         //Lookup our job and download the specified files (any exceptions will return a HTTP 503)
         VEGLJob job = jobManager.getJobById(Integer.parseInt(jobId));
-        fileStagingService.handleFileDownload(job, filename, response);
+        vhirlFileStagingService.handleFileDownload(job, filename, response);
         return null;
     }
 
@@ -218,10 +226,10 @@ public class JobBuilderController extends BaseCloudController {
             return generateJSONResponseMAV(false, null, "Error fetching job with id " + jobId);
         }
 
-                
+
         List<StagedFile> files = new ArrayList<StagedFile>();
         try {
-            files = fileStagingService.handleMultiFileUpload(job, (MultipartHttpServletRequest) request);
+            files = vhirlFileStagingService.handleMultiFileUpload(job, (MultipartHttpServletRequest) request);
         } catch (Exception ex) {
             logger.error("Error uploading file(s)", ex);
             return generateJSONResponseMAV(false, null, "Error uploading file(s)");
@@ -230,8 +238,8 @@ public class JobBuilderController extends BaseCloudController {
         for (StagedFile file : files) {
             fileInfos.add(stagedFileToFileInformation(file));
         }
-        
-        
+
+
         //We have to use a HTML response due to ExtJS's use of a hidden iframe for file uploads
         //Failure to do this will result in the upload working BUT the user will also get prompted
         //for a file download containing the encoded response from this function (which we don't want).
@@ -241,8 +249,7 @@ public class JobBuilderController extends BaseCloudController {
     /**
      * Deletes one or more uploaded files of the current job.
      *
-     * @param request The servlet request
-     * @param response The servlet response
+     * @param jobId
      *
      * @return A JSON object with a success attribute that indicates whether
      *         the files were successfully deleted.
@@ -260,7 +267,7 @@ public class JobBuilderController extends BaseCloudController {
         }
 
         for (String fileName : fileNames) {
-            boolean success = fileStagingService.deleteStageInFile(job, fileName);
+            boolean success = vhirlFileStagingService.deleteStageInFile(job, fileName);
             logger.debug("Deleting " + fileName + " success=" + success);
         }
 
@@ -270,8 +277,7 @@ public class JobBuilderController extends BaseCloudController {
     /**
      * Deletes one or more job downloads for the current job.
      *
-     * @param request The servlet request
-     * @param response The servlet response
+     * @param jobId
      *
      * @return A JSON object with a success attribute that indicates whether
      *         the downloads were successfully deleted.
@@ -313,8 +319,7 @@ public class JobBuilderController extends BaseCloudController {
     /**
      * Get status of the current job submission.
      *
-     * @param request The servlet request
-     * @param response The servlet response
+     * @param jobId
      *
      * @return A JSON object with a success attribute that indicates the status.
      *
@@ -337,8 +342,7 @@ public class JobBuilderController extends BaseCloudController {
     /**
      * Cancels the current job submission. Called to clean up temporary files.
      *
-     * @param request The servlet request
-     * @param response The servlet response
+     * @param jobId
      *
      * @return null
      */
@@ -354,7 +358,7 @@ public class JobBuilderController extends BaseCloudController {
             return generateJSONResponseMAV(false, null, "Error fetching job with id " + jobId);
         }
 
-        boolean success = fileStagingService.deleteStageInDirectory(job);
+        boolean success = vhirlFileStagingService.deleteStageInDirectory(job);
         return generateJSONResponseMAV(success, null, "");
     }
 
@@ -395,6 +399,11 @@ public class JobBuilderController extends BaseCloudController {
             HttpServletRequest request,
             @AuthenticationPrincipal PortalUser user) throws ParseException {
 
+        // Note the Agent creating the job: this VHIRL instance
+
+        String requestURL = request.getRequestURL().toString();
+        String serverURL = requestURL.substring(0, requestURL.lastIndexOf("/"));
+
         //Get our job
         VEGLJob job = null;
         try {
@@ -409,6 +418,9 @@ public class JobBuilderController extends BaseCloudController {
             logger.error(String.format("Error creating/fetching job with id %1$s", id), ex);
             return generateJSONResponseMAV(false, null, "Error fetching job with id " + id);
         }
+
+
+
 
         //Update our job from the request parameters
         job.setSeriesId(seriesId);
@@ -434,6 +446,7 @@ public class JobBuilderController extends BaseCloudController {
         }
 
         //Dont allow the user to specify a cloud compute service that DNE
+        // Updating the compute service means updating the dev keypair
         if (computeServiceId != null) {
             CloudComputeService ccs = getComputeService(computeServiceId);
             if (ccs == null) {
@@ -442,6 +455,7 @@ public class JobBuilderController extends BaseCloudController {
             }
 
             job.setComputeServiceId(computeServiceId);
+            job.setComputeInstanceKey(ccs.getKeypair());
         } else {
             job.setComputeServiceId(null);
         }
@@ -466,7 +480,7 @@ public class JobBuilderController extends BaseCloudController {
      * The Nth download object will be defined as a combination of
      * names[N], descriptions[N], urls[N] and localPaths[N]
      *
-     * @param append If true, the parsed downloaded will append themselves to the existing job. If false, they will replace all downloads for the existing job
+     * @param appendString If true, the parsed downloaded will append themselves to the existing job. If false, they will replace all downloads for the existing job
      * @return
      * @throws ParseException
      */
@@ -627,17 +641,20 @@ public class JobBuilderController extends BaseCloudController {
                 // we need to keep track of old job for audit trail purposes
                 oldJobStatus = curJob.getStatus();
 
-                // final check to ensure user has permission to run the job
-                boolean permissionGranted = false;
+                // Assume user has permission since we're using images from the SSC
+                boolean permissionGranted = true;
 
-                String jobImageId = curJob.getComputeVmId();
-                List<MachineImage> images = getImagesForJobAndUser(request, curJob);
-                for (MachineImage vglMachineImage : images) {
-                    if (vglMachineImage.getImageId().equals(jobImageId)) {
-                        permissionGranted = true;
-                        break;
-                    }
-                }
+                // // final check to ensure user has permission to run the job
+                // // boolean permissionGranted = false;
+
+                // String jobImageId = curJob.getComputeVmId();
+                // List<MachineImage> images = getImagesForJobAndUser(request, curJob);
+                // for (MachineImage vglMachineImage : images) {
+                //     if (vglMachineImage.getImageId().equals(jobImageId)) {
+                //         permissionGranted = true;
+                //         break;
+                //     }
+                // }
 
                 if (permissionGranted) {
                     // Right before we submit - pump out a script file for downloading every VglDownload object when the VM starts
@@ -648,7 +665,7 @@ public class JobBuilderController extends BaseCloudController {
                     } else {
                         // copy files to S3 storage for processing
                         // get job files from local directory
-                        StagedFile[] stagedFiles = fileStagingService.listStageInDirectoryFiles(curJob);
+                        StagedFile[] stagedFiles = vhirlFileStagingService.listStageInDirectoryFiles(curJob);
                         if (stagedFiles.length == 0) {
                             errorDescription = "There wasn't any input files found for submitting your job for processing.";
                             errorCorrection = "Please upload your input files and try again.";
@@ -664,6 +681,10 @@ public class JobBuilderController extends BaseCloudController {
                             // create our input user data string
                             String userDataString = null;
                             userDataString = createBootstrapForJob(curJob);
+
+                            // PROVENANCE
+                            vhirlProvenanceService.setServerURL(request.getRequestURL().toString());
+                            vhirlProvenanceService.createActivity(curJob);
 
                             oldJobStatus = curJob.getStatus();
                             curJob.setStatus(JobBuilderController.STATUS_PROVISION);
@@ -754,7 +775,7 @@ public class JobBuilderController extends BaseCloudController {
      *
      * The Job MUST be associated with a specific compute and storage service. Staging areas and other bits and pieces relating to the job will also be initialised.
      *
-     * @param email
+     * @param user
      * @return
      */
     private VEGLJob initialiseVEGLJob(HttpSession session, PortalUser user) throws PortalServiceException {
@@ -790,7 +811,8 @@ public class JobBuilderController extends BaseCloudController {
         //Load details from
         job.setUser(user.getEmail());
         job.setEmailAddress(user.getEmail());
-        job.setComputeInstanceKey("vgl-developers");
+        // Get keypair name from CloudComputeService later
+        // job.setComputeInstanceKey("vgl-developers");
         job.setName("VL-Job " + new Date().toString());
         job.setDescription("");
         job.setStatus(STATUS_UNSUBMITTED);
@@ -810,7 +832,7 @@ public class JobBuilderController extends BaseCloudController {
         jobManager.createJobAuditTrail(null, job, "Job created.");
 
         //Finally generate our stage in directory for persisting inputs
-        fileStagingService.generateStageInDirectory(job);
+        vhirlFileStagingService.generateStageInDirectory(job);
 
         return job;
     }
@@ -828,12 +850,12 @@ public class JobBuilderController extends BaseCloudController {
         OutputStream os = null;
         OutputStreamWriter out = null;
         try {
-            os = fileStagingService.writeFile(job,  fileName);
+            os = vhirlFileStagingService.writeFile(job,  fileName);
             out = new OutputStreamWriter(os);
 
             for (VglDownload dl : job.getJobDownloads()) {
                 out.write(String.format("#Downloading %1$s\n", dl.getName()));
-                out.write(String.format("curl -L '%1$s' > \"%2$s\"\n", dl.getUrl(), dl.getLocalPath()));
+                out.write(String.format("curl -f -L '%1$s' -o \"%2$s\"\n", dl.getUrl(), dl.getLocalPath()));
             }
 
             return true;
@@ -848,15 +870,48 @@ public class JobBuilderController extends BaseCloudController {
     }
 
     /**
-     * Gets the set of cloud images available for use by a particular user
+     * Gets the set of cloud images available for use by a particular user.
+     *
+     * If jobId is specified, limit the set to images that are
+     * compatible with the solution selected for the job.
+     *
      * @param request
+     * @param computeServiceId
+     * @param jobId (optional) id of a job to limit suitable images
      * @return
      */
     @RequestMapping("/getVmImagesForComputeService.do")
-    public ModelAndView getImagesForComputeService(HttpServletRequest request,
-            @RequestParam("computeServiceId") String computeServiceId) {
+    public ModelAndView getImagesForComputeService(
+        HttpServletRequest request,
+        @RequestParam("computeServiceId") String computeServiceId,
+        @RequestParam(value="jobId", required=false) Integer jobId) {
         try {
-            List<MachineImage> images = getImagesForJobAndUser(request, computeServiceId);
+            // Assume all images are usable by the current user
+            List<MachineImage> images = new ArrayList<MachineImage>();
+
+            // Filter list to images suitable for job solution, if specified
+            if (jobId != null) {
+                Set<String> vmIds = scmEntryService
+                    .getJobImages(jobId)
+                    .get(computeServiceId);
+                if (vmIds != null) {
+                    for (String vmId: vmIds) {
+                        images.add(new MachineImage(vmId));
+                    }
+                }
+            }
+            else {
+                // Fall back on old behaviour based on configured images for now
+                // Get images available to the current user
+                images = getImagesForJobAndUser(request, computeServiceId);
+            }
+
+            if (images.isEmpty()) {
+                // There are no suitable images at the specified compute service.
+                log.warn("No suitable images at compute service (" + computeServiceId + ") for job (" + jobId + ")");
+            }
+
+            // return result
             return generateJSONResponseMAV(true, images, "");
         } catch (Exception ex) {
             log.error("Unable to access image list:" + ex.getMessage(), ex);
@@ -864,6 +919,16 @@ public class JobBuilderController extends BaseCloudController {
         }
     }
 
+    public ModelAndView getImagesForComputeService(HttpServletRequest request,
+                                                   String computeServiceId) {
+        return getImagesForComputeService(request, computeServiceId, null);
+    }
+
+    /**
+     * Return a JSON list of VM types available for the compute service.
+     *
+     * @param computeServiceId
+     */
     @RequestMapping("/getVmTypesForComputeService.do")
     public ModelAndView getTypesForComputeService(HttpServletRequest request,
             @RequestParam("computeServiceId") String computeServiceId) {
@@ -882,20 +947,40 @@ public class JobBuilderController extends BaseCloudController {
 
     /**
      * Gets a JSON list of id/name pairs for every available compute service
+     *
+     * If a jobId parameter is provided, then return compute services
+     * compatible with that job. Currently that is only those services
+     * that have images available for the solution used for the job.
+     *
+     * @param jobId (optional) job id to limit acceptable services
      * @return
      */
     @RequestMapping("/getComputeServices.do")
-    public ModelAndView getComputeServices() {
+    public ModelAndView getComputeServices(@RequestParam(value="jobId",
+                                                         required=false)
+                                           Integer jobId) {
+        Set<String> jobCCSIds = scmEntryService.getJobProviders(jobId);
+
         List<ModelMap> simpleComputeServices = new ArrayList<ModelMap>();
 
         for (CloudComputeService ccs : cloudComputeServices) {
-            ModelMap map = new ModelMap();
-            map.put("id", ccs.getId());
-            map.put("name", ccs.getName());
-            simpleComputeServices.add(map);
+            // Add the ccs to the list if it's valid for job or we have no job
+            if (jobCCSIds == null || jobCCSIds.contains(ccs.getId())) {
+                ModelMap map = new ModelMap();
+                map.put("id", ccs.getId());
+                map.put("name", ccs.getName());
+                simpleComputeServices.add(map);
+            }
         }
 
         return generateJSONResponseMAV(true, simpleComputeServices, "");
+    }
+
+    /**
+     * Convenience method for getComputeServices(null).
+     */
+    public ModelAndView getComputeServices() {
+        return getComputeServices(null);
     }
 
     /**
@@ -938,7 +1023,7 @@ public class JobBuilderController extends BaseCloudController {
         //Get our files
         StagedFile[] files = null;
         try {
-            files = fileStagingService.listStageInDirectoryFiles(job);
+            files = vhirlFileStagingService.listStageInDirectoryFiles(job);
         } catch (Exception ex) {
             logger.error("Error listing job stage in directory", ex);
             return generateJSONResponseMAV(false, null, "Error reading job stage in directory");
@@ -962,6 +1047,4 @@ public class JobBuilderController extends BaseCloudController {
 
         return generateJSONResponseMAV(true, allInputs, "");
     }
-
-
 }

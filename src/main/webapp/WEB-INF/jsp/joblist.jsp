@@ -66,6 +66,7 @@
     <script src="js/ScriptBuilder/templates/AEMInversionTemplate.js" type="text/javascript"></script>
     <script src="js/ScriptBuilder/templates/ANUGATemplate.js" type="text/javascript"></script>
     <script src="js/ScriptBuilder/templates/TCRMTemplate.js" type="text/javascript"></script>
+    <script src="js/ScriptBuilder/templates/DynamicTemplate.js" type="text/javascript"></script>    
     <script type="text/javascript" src="js/ScriptBuilder/ScriptBuilder.js"></script>
     <script type="text/javascript" src="js/ScriptBuilder/InsertionPromptWindow.js"></script>
     <script type="text/javascript" src="js/ScriptBuilder/Components.js"></script>
@@ -73,6 +74,12 @@
 
     <script type="text/javascript" src="js/vegl/JobList.js"></script>
     <script type="text/javascript" src="js/vegl/HelpHandler.js"></script>
+    <script type="text/javascript" src="js/vegl/charts/3DTerrainPlot.js"></script>
+    
+    <script src="portal-core/js/d3/d3.min.js" type="text/javascript" ></script>
+    <script src="portal-core/js/threejs/three.min.js" type="text/javascript"></script>
+    <script src="portal-core/js/threejs/controls/OrbitControls.js" type="text/javascript"></script>
+    
 </head>
 
 <body>

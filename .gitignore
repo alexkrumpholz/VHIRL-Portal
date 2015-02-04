@@ -3,3 +3,6 @@
 .settings/
 target/
 src/main/webapp/META-INF/
+*.iml
+.checkstyle
+MANIFEST.MF

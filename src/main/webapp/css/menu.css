@@ -34,9 +34,9 @@
 	background-color:#3C6F9E;
 }
 
-#latlng a {
+#latlng {
 	position:absolute;
-    top: 80px;
+    top: 70px;
     right: 30px;
     color: #CEDBE7;
     font: 12px Arial, Tahoma, Helvetica, sans-serif;

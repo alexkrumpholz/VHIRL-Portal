@@ -5,9 +5,9 @@
     <groupId>org.auscope.portal</groupId>
     <artifactId>VHIRL-Portal</artifactId>
     <packaging>war</packaging>
-    <version>1.0.0-SNAPSHOT</version>
+    <version>3.0.0-RELEASE</version>
     <name>VHIRL-Portal</name>
-    <url>https://www.seegrid.csiro.au/wiki/NeCTARProjects/Vhirl/WebHome</url>
+    <url>https://www.seegrid.csiro.au/wiki/VirtualLabs/Vhirl/WebHome</url>
     <issueManagement>
         <system>Jira</system>
         <url>https://jira.csiro.au/browse/VHIRL</url>
@@ -154,13 +154,10 @@
                 <groupId>net.alchim31.maven</groupId>
                 <artifactId>yuicompressor-maven-plugin</artifactId>
                 <configuration>
-                    <!--
                     <excludes>
-                        Exclude Ext JS
                         <exclude>portal-core/**</exclude>
-                        <exclude>external/**</exclude>
+                        <exclude>js/external/**</exclude>
                     </excludes>
-                    -->
                     <includes>
                         <include>js/**</include>
                     </includes>
@@ -223,8 +220,9 @@
         <log4j.version>1.2.16</log4j.version>
         <targetJdk>1.7</targetJdk>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <powermock.version>1.5.5</powermock.version>
-        <portal.core.version>2014-09-22</portal.core.version>
+        <powermock.version>1.5.6</powermock.version>
+        <portal.core.version>1.2.0</portal.core.version>
+        <httpclient.version>4.3.5</httpclient.version>
     </properties>
 
     <repositories>
@@ -239,19 +237,24 @@
             <url>http://download.osgeo.org/webdav/geotools</url>
         </repository>
         <repository>
-            <id>mygrid</id>
-            <name>MyGrid Repository</name>
-            <url>http://build.mygrid.org.uk/maven/repository/</url>
-        </repository>
-        <repository>
             <id>geotoolkit</id>
             <name>Geo Toolkit Repository</name>
             <url>http://maven.geotoolkit.org/</url>
         </repository>
+        <repository>
+            <id>cgsrv8.arrc.csiro.au PROMS-java</id>
+            <name>AuScope Nexus - PROMS-Java</name>
+            <url>https://cgsrv8.arrc.csiro.au/nexus/content/repositories/PROMS-java-snapshot</url>
+        </repository>
     </repositories>
-    
+
     <!-- Dependencies -->
     <dependencies>
+        <dependency>
+            <groupId>proms-clients-java</groupId>
+            <artifactId>proms-clients-java</artifactId>
+            <version>0.0.1-SNAPSHOT</version>
+        </dependency>
         <dependency>
             <groupId>org.auscope.portal</groupId>
             <artifactId>portal-core</artifactId>
@@ -273,12 +276,7 @@
         <dependency>
             <groupId>org.apache.httpcomponents</groupId>
             <artifactId>httpclient</artifactId>
-            <version>4.2.2</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.httpcomponents</groupId>
-            <artifactId>httpcore</artifactId>
-            <version>4.2.1</version>
+            <version>${httpclient.version}</version>
         </dependency>
         <dependency>
             <groupId>commons-dbcp</groupId>

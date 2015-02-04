@@ -9,9 +9,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.auscope.portal.core.cloud.CloudJob;
 import org.auscope.portal.server.vegl.VglParameter.ParameterType;
-import org.auscope.portal.server.web.controllers.JobBuilderController;
-import org.springframework.context.ApplicationContext;
-import org.springframework.context.support.ClassPathXmlApplicationContext;
+import org.auscope.portal.server.web.service.scm.Solution;
 
 /**
  * A specialisation of a generic cloud job for the VEGL Portal
@@ -27,6 +25,7 @@ public class VEGLJob extends CloudJob implements Cloneable {
     private Integer seriesId;
     private boolean emailNotification;
     private String processTimeLog;
+    private String solutionId;
 
 
     /** A map of VglParameter objects keyed by their parameter names*/
@@ -197,6 +196,14 @@ public class VEGLJob extends CloudJob implements Cloneable {
         }
     }
 
+    public String getSolutionId() {
+        return solutionId;
+    }
+
+    public void setSolutionId(String solutionId) {
+        this.solutionId = solutionId;
+    }
+
     /**
      * Similar to clone but ensures compatibility with hibernate. No IDs or references (except for immutable ones)
      * will be shared by the clone and this object.
@@ -207,7 +214,7 @@ public class VEGLJob extends CloudJob implements Cloneable {
         newJob.setComputeInstanceId(this.getComputeInstanceId());
         newJob.setComputeInstanceKey(this.getComputeInstanceKey());
         newJob.setComputeInstanceType(this.getComputeInstanceType());
-        newJob.setComputeServiceId(this.getStorageServiceId());
+        newJob.setComputeServiceId(this.getComputeServiceId());
         newJob.setComputeVmId(this.getComputeVmId());
         newJob.setDescription(this.getDescription());
         newJob.setEmailAddress(this.getEmailAddress());
@@ -219,6 +226,7 @@ public class VEGLJob extends CloudJob implements Cloneable {
         newJob.setStorageBaseKey(this.getStorageBaseKey());
         newJob.setSubmitDate(this.getSubmitDate()); //this job isn't submitted yet
         newJob.setUser(this.getUser());
+        newJob.setSolutionId(this.getSolutionId());
 
         List<VglDownload> newDownloads = new ArrayList<VglDownload>();
         for (VglDownload dl : this.getJobDownloads()) {

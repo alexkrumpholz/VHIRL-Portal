@@ -16,16 +16,21 @@ import org.auscope.portal.core.util.FileIOUtil;
 import org.auscope.portal.server.web.controllers.BaseCloudController;
 import org.auscope.portal.server.web.controllers.JobBuilderController;
 import org.auscope.portal.server.web.controllers.JobListController;
+import org.auscope.portal.server.web.service.VHIRLFileStagingService;
+import org.auscope.portal.server.web.service.VHIRLProvenanceService;
 import org.springframework.ui.ModelMap;
 
 public class VGLJobStatusAndLogReader extends BaseCloudController implements JobStatusReader {
 
     private VEGLJobManager jobManager;
+    private VHIRLProvenanceService vhirlProvenanceService;
 
-    public VGLJobStatusAndLogReader(VEGLJobManager jobManager,
+    public VGLJobStatusAndLogReader(VEGLJobManager jobManager, VHIRLFileStagingService vhirlFileStagingService,
             CloudStorageService[] cloudStorageServices, CloudComputeService[] cloudComputeServices) {
         super(cloudStorageServices, cloudComputeServices);
         this.jobManager = jobManager;
+        this.vhirlProvenanceService = new VHIRLProvenanceService(vhirlFileStagingService, cloudStorageServices);
+
     }
 
     /**
@@ -111,7 +116,7 @@ public class VGLJobStatusAndLogReader extends BaseCloudController implements Job
      * Using the services internal to the class, determine the current status of this job. Service failure
      * will return the underlying job status
      */
-    public String getJobStatus(CloudJob cloudJob) {
+	public String getJobStatus(CloudJob cloudJob) {
         //The service hangs onto the underlying job Object but the DB is the point of truth
         //Make sure we get an updated job object first!
         VEGLJob job = jobManager.getJobById(cloudJob.getId());
@@ -141,9 +146,12 @@ public class VGLJobStatusAndLogReader extends BaseCloudController implements Job
         }
 
         boolean jobStarted = containsFile(results, "workflow-version.txt");
-        boolean jobFinished = containsFile(results, JobListController.VGL_LOG_FILE);
+        boolean jobFinished = containsFile(results,
+        		JobListController.VGL_LOG_FILE);
 
         if (jobFinished) {
+        	// Provenance goes here.
+            vhirlProvenanceService.createEntitiesForOutputs(job);
             return JobBuilderController.STATUS_DONE;
         } else if (jobStarted) {
             return JobBuilderController.STATUS_ACTIVE;

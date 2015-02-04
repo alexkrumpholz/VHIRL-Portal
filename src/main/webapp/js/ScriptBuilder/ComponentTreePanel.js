@@ -30,8 +30,29 @@ Ext.define('ScriptBuilder.ComponentTreePanel', {
         var name = node.get('text');
         var description = node.get('qtip');
 
+        // Retrieve detailed entry for the template from the SCM and
+        // fire addcomponent to create and show the GUI.
         if (!Ext.isEmpty(componentName)) {
-            this.fireEvent('addcomponent', this, componentName, name, description);
+            Ext.Ajax.request({
+                url: 'getSolution.do',
+                scope: this,
+                headers: {
+                    Accept: 'application/json'
+                },
+                params: {
+                    solutionId: componentName
+                },
+                success: function(response) {
+                    entry = Ext.JSON.decode(response.responseText);
+                    if (entry && entry.data) {
+                        this.fireEvent('addcomponent', this, entry.data[0], name, description);
+                    }
+                },
+
+                failure: function(response) {
+                    console.log("Get detailed entry failed! " + response);
+                }
+            });
         }
     }
 });

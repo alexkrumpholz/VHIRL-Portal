@@ -165,8 +165,9 @@ Ext.define('vegl.jobwizard.forms.JobSeriesForm', {
 
     beginValidation : function(callback) {
         var radioGroup = this.getComponent('seriesRadioGroup');
-        var wizardState = this.wizardState;
         var numDownloadReqs = this.getNumDownloadRequests();
+        var self = this;
+        var wizardState = this.wizardState;
 
         if (radioGroup.getValue().sCreateSelect === 0) {
             if (Ext.isEmpty(wizardState.seriesId)) {
@@ -175,13 +176,15 @@ Ext.define('vegl.jobwizard.forms.JobSeriesForm', {
                 return;
             }
 
-            if (!wizardState.skipConfirmPopup && numDownloadReqs === 0) {
+            // Confirm the user wants to continue if we have no
+            // captured dataset and no job defined.
+            if (wizardState.jobId === undefined && numDownloadReqs === 0) {
                 Ext.Msg.confirm('Confirm',
                         'No data set has been captured. Do you want to continue?',
                         function(button) {
                             if (button === 'yes') {
-                                wizardState.skipConfirmPopup = true;
-                                callback(true);
+                                // Make sure we create the job
+                                self.createJob(callback);
                                 return;
                             } else {
                                 callback(false);
@@ -189,7 +192,8 @@ Ext.define('vegl.jobwizard.forms.JobSeriesForm', {
                             }
                     });
             } else {
-                callback(true);
+                // Create the job then call callback.
+                this.createJob(callback);
                 return;
             }
         } else {
@@ -201,15 +205,13 @@ Ext.define('vegl.jobwizard.forms.JobSeriesForm', {
                 return;
             }
 
-            var csFunc = this.createSeries(wizardState, seriesName, seriesDesc, callback);
-
-            if (numDownloadReqs === 0) {
+            if (wizardState.jobId === undefined && numDownloadReqs === 0) {
                 Ext.Msg.confirm('Confirm',
                         'No data set has been captured. Do you want to continue?',
                         function(button) {
                             if (button === 'yes') {
                                 //Request our new series is created
-                                csFunc();
+                                self.createSeries(seriesName, seriesDesc, callback);
                             } else {
                                 callback(false);
                                 return;
@@ -217,7 +219,7 @@ Ext.define('vegl.jobwizard.forms.JobSeriesForm', {
                     });
             } else {
                 //Request our new series is created
-                csFunc();
+                this.createSeries(seriesName, seriesDesc, callback);
             }
         }
     },
@@ -231,37 +233,72 @@ Ext.define('vegl.jobwizard.forms.JobSeriesForm', {
         return size;
     },
 
-    createSeries : function(wizardState, seriesName, seriesDesc, callback) {
-        return function() {
+    createSeries : function(seriesName, seriesDesc, callback) {
+        var wizardState = this.wizardState;
+        var self = this;
 
-            Ext.Ajax.request({
-                url: 'secure/createSeries.do',
-                params: {
-                    'seriesName': seriesName,
-                    'seriesDescription': seriesDesc
-                },
-                callback : function(options, success, response) {
-                    if (success) {
-                        var responseObj = Ext.JSON.decode(response.responseText);
-                        if (responseObj.success && Ext.isNumber(responseObj.data[0].id)) {
-                            wizardState.seriesId = responseObj.data[0].id;
-                            callback(true);
-                            return;
-                        } else {
-                            errorMsg = responseObj.msg;
-                            errorInfo = responseObj.debugInfo;
-                        }
+        Ext.Ajax.request({
+            url: 'secure/createSeries.do',
+            params: {
+                'seriesName': seriesName,
+                'seriesDescription': seriesDesc
+            },
+            callback : function(options, success, response) {
+                if (success) {
+                    var responseObj = Ext.JSON.decode(response.responseText);
+                    if (responseObj.success && Ext.isNumber(responseObj.data[0].id)) {
+                        wizardState.seriesId = responseObj.data[0].id;
+                        self.createJob(callback);
+                        return;
                     } else {
-                        errorMsg = "There was an internal error saving your series.";
-                        errorInfo = "Please try again in a few minutes or report this error to cg_admin@csiro.au.";
+                        errorMsg = responseObj.msg;
+                        errorInfo = responseObj.debugInfo;
                     }
+                } else {
+                    errorMsg = "There was an internal error saving your series.";
+                    errorInfo = "Please try again in a few minutes or report this error to cg_admin@csiro.au.";
+                }
 
-                    portal.widgets.window.ErrorWindow.showText('Create new series', errorMsg, errorInfo);
+                portal.widgets.window.ErrorWindow.showText('Create new series', errorMsg, errorInfo);
+                callback(false);
+                return;
+            }
+        });
+    },
+
+    createJob : function(callback) {
+        var wizardState = this.wizardState;
+        var params = {
+            seriesId: wizardState.seriesId
+        };
+
+        // If we already created the job, pass the id so it's updated instead.
+        if (wizardState.jobId !== undefined) {
+            params.id = wizardState.jobId;
+        }
+
+        Ext.Ajax.request({
+            url : 'updateOrCreateJob.do',
+            params : params,
+            callback : function(options, success, response) {
+                if (!success) {
+                    portal.widgets.window.ErrorWindow.showText('Error creating job', 'There was an unexpected error when attempting to save the details on this form. Please try again in a few minutes.');
                     callback(false);
                     return;
                 }
-            });
-        }
+
+                var responseObj = Ext.JSON.decode(response.responseText);
+                if (!responseObj.success) {
+                    portal.widgets.window.ErrorWindow.showText('Error saving details', 'There was an unexpected error when attempting to save the details on this form.', responseObj.msg);
+                    callback(false);
+                    return;
+                }
+
+                wizardState.jobId = responseObj.data[0].id;
+                callback(true);
+                return;
+            }
+        });
     },
 
     getHelpInstructions : function() {

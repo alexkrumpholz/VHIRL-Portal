@@ -24,6 +24,10 @@ source /etc/profile
 
 echo "------ VL Bootstrap Script ---------"
 echo "                                      "
+echo "------ Provisioning ----------"
+echo ""
+{9}
+echo ""
 echo "------ Printing Environment ----------"
 echo "VL_BOOTSTRAP_VERSION = $VL_BOOTSTRAP_VERSION"
 echo "WORKING_DIR = $WORKING_DIR"
@@ -38,7 +42,7 @@ echo "--------------------------------------"
 
 #Download our workflow and make it executable
 echo "Downloading workflow script from $WORKFLOW_URL and storing it at $WORKFLOW_SCRIPT"
-curl -L "$WORKFLOW_URL" > "$WORKFLOW_SCRIPT"
+curl -f -L "$WORKFLOW_URL" -o "$WORKFLOW_SCRIPT"
 echo "curl result $?"
 echo "Making $WORKFLOW_SCRIPT executable"
 chmod +x "$WORKFLOW_SCRIPT"

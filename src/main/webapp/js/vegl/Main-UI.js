@@ -43,7 +43,26 @@ Ext.application({
                 }
             },
             autoLoad : false,
-            data : []
+            data : [],
+            listeners : {
+                load  :  function(store, records, successful, eopts){
+                    if(!successful){
+                        Ext.Msg.show({
+                            title:'Error!',
+                            msg: 'Your WMS service has to support EPSG:3857 to be supported by Google map. You are seeing this error because either the URL is not valid or it does not conform to EPSG:3857 WMS layers standard',
+                            buttons: Ext.Msg.OK
+                        });
+                    }else{
+                        if(records.length === 0){
+                            Ext.Msg.show({
+                                title:'No WMS Layers!',
+                                msg: 'There are no WMS Layers in the given URL',
+                                buttons: Ext.Msg.OK
+                            });
+                        }
+                    }
+                }
+            }
         });
 
         //Create our KnownLayer store
@@ -53,6 +72,21 @@ Ext.application({
             proxy : {
                 type : 'ajax',
                 url : 'getKnownLayers.do',
+                reader : {
+                    type : 'json',
+                    root : 'data'
+                }
+            },
+            autoLoad : true
+        });
+
+        // Create the ResearchDataLayer store
+        var researchDataLayerStore = Ext.create('Ext.data.Store', {
+            model : 'portal.knownlayer.KnownLayer',
+            groupField: 'group',
+            proxy : {
+                type : 'ajax',
+                url : 'getResearchDataLayers.do',
                 reader : {
                     type : 'json',
                     root : 'data'
@@ -87,43 +121,6 @@ Ext.application({
         } else {
             map = Ext.create('portal.map.openlayers.OpenLayersMap', mapCfg);
         }
-
-        var layersPanel = Ext.create('portal.widgets.panel.LayerPanel', {
-            id : 'vgl-layers-panel',
-            title : 'Active Layers',
-            region : 'south',
-            store : layerStore,
-            map : map,
-            height: '30%',
-            split: true,
-            allowDebugWindow : isDebugMode,
-            listeners : {
-                removelayerrequest: function(sourceGrid, record) {
-                    filterPanel.clearFilter();
-                }
-            }
-        });
-
-
-        var handleFilterSelectionComplete =  function(){
-            var activePanel = tabsPanel.activeTab;
-            activePanel.addSelectedLayerToActive();
-
-        };
-
-
-        /**
-         * Used to show extra details for querying services
-         */
-        var filterPanel = Ext.create('portal.widgets.panel.FilterPanel', {
-            id : 'vgl-filter-panel',
-            region: 'center',
-            layerPanel : layersPanel,
-            map : map,
-            listeners : {
-                filterselectioncomplete : handleFilterSelectionComplete
-            }
-        });
 
         var layerFactory = Ext.create('portal.layer.LayerFactory', {
             map : map,
@@ -168,49 +165,97 @@ Ext.application({
         };
 
         var knownLayersPanel = Ext.create('portal.widgets.panel.KnownLayerPanel', {
-            title : 'Featured Layers',
+            title : 'Featured',
             store : knownLayerStore,
+            activelayerstore : layerStore,
             map : map,
-            listeners : {
-                //On selection, update our filter panel
-                select : function(rowModel, record, index) {
-                    var newLayer;
-                    if(record.get('layer')){
-                        newLayer = record.get('layer');
-                    }else{
-                        newLayer = layerFactory.generateLayerFromKnownLayer(record);
-                        record.set('layer', newLayer);
-                    }
+            layerFactory : layerFactory,
+            tooltip : {
+                anchor : 'top',
+                title : 'Featured Layers',
+                text : '<p1>This is where the portal groups data services with a common theme under a layer. This allows you to interact with multiple data providers using a common interface.</p><br><p>The underlying data services are discovered from a remote registry. If no services can be found for a layer, it will be disabled.</p1>',
+                showDelay : 100,
+                icon : 'img/information.png',
+                dismissDelay : 30000
+            }
+        });
 
-                    filterPanel.showFilterForLayer(newLayer);
-                },
-                addlayerrequest : handleAddRecordToMap
+        var unmappedRecordsPanel = Ext.create('portal.widgets.panel.CSWRecordPanel', {
+            title : 'Registered',
+            store : unmappedCSWRecordStore,
+            activelayerstore : layerStore,
+            tooltip : {
+                title : 'Registered Layers',
+                text : 'The layers that appear here are the data services that were discovered in a remote registry but do not belong to any of the Featured Layers groupings.',
+                showDelay : 100,
+                dismissDelay : 30000
+            },
+            map : map,
+            layerFactory : layerFactory
+        });
+
+        var customRecordsPanel = Ext.create('portal.widgets.panel.CustomRecordPanel', {
+            title : 'Custom',
+            itemId : 'org-auscope-custom-record-panel',
+            store : customRecordStore,
+            activelayerstore : layerStore,
+            enableBrowse : true,//VT: if true browse catalogue option will appear
+            tooltip : {
+                title : 'Custom Data Layers',
+                text : 'This tab allows you to create your own layers from remote data services.',
+                showDelay : 100,
+                dismissDelay : 30000
+            },
+            map : map,
+            layerFactory : layerFactory
+        });
+
+        var researchDataPanel = Ext.create('portal.widgets.panel.KnownLayerPanel', {
+            title : 'Research Data',
+            store : researchDataLayerStore,
+            activelayerstore : layerStore,
+            enableBrowse : false,//VT: if true browse catalogue option will appear
+            map : map,
+            layerFactory : layerFactory,
+            tooltip : {
+                title : 'Research Data Layers',
+                text : '<p1>The layers in this tab represent past/present research activities and may contain partial or incomplete information.</p1>',
+                showDelay : 100,
+                dismissDelay : 30000
             }
         });
 
         // basic tabs 1, built from existing content
         var tabsPanel = Ext.create('Ext.TabPanel', {
-            id : 'vgl-tabs-panel',
+            // Matches hard-coded id in portal-core/portal/js/layer/Layer.js            
+            id : 'auscope-tabs-panel',
+            title : 'Layers',
             activeTab : 0,
-            region : 'north',
+            region : 'center',
             split : true,
-            height : '45%',
+            height : '70%',
+            width : '100%',
             enableTabScroll : true,
-            items:[knownLayersPanel]
+            items:[
+                knownLayersPanel,
+                unmappedRecordsPanel,
+                customRecordsPanel,
+                researchDataPanel
+            ]
         });
 
         /**
          * Used as a placeholder for the tree and details panel on the left of screen
          */
         var westPanel = {
-            layout: 'border',
+            layout: 'border',//VT: vbox doesn't support splitbar unless we custom it.
             region:'west',
             border: false,
             split:true,
             //margins: '100 0 0 0',
-            margins:'105 0 0 3',
+            margins:'100 0 0 3',
             width: 350,
-            items:[tabsPanel , layersPanel, filterPanel]
+            items:[tabsPanel]
         };
 
         /**
@@ -219,7 +264,7 @@ Ext.application({
         var centerPanel = Ext.create('Ext.panel.Panel', {
             region: 'center',
             id: 'center_region',
-            margins: '105 0 0 0',
+            margins: '100 0 0 0',
             cmargins:'100 0 0 0'
         });
 

@@ -26,10 +26,8 @@ import numpy as np
 import VHIRL_conversions
 import subprocess
 from os.path import join, exists
-
 # Related major packages
 import anuga
-
 ######################################################
 ####### Do not change anything above this line #######
 
@@ -128,11 +126,12 @@ print domain.statistics()
 #------------------------------------------------------------------------------
 # Setup parameters of computational domain
 #------------------------------------------------------------------------------
-domain.set_name('busselton_' + scenario) 	  # Name of sww file
+sww_file_base_name = 'busselton_' + scenario
+domain.set_name(sww_file_base_name) 	  # Name of sww file
 domain.set_datadir('.')                       # Store sww output here
 domain.set_minimum_storable_height(0.01)      # Store only depth > 1cm
 domain.set_flow_algorithm('tsunami')
-
+sww_file = sww_file_base_name + '.sww'
 
 
 #------------------------------------------------------------------------------
@@ -199,6 +198,21 @@ for t in domain.evolve(yieldstep=60*0.5,
     print domain.timestepping_statistics()
     print domain.boundary_statistics(tags='ocean_wnw')
 
+# Visualise the output
+epsg_code = int("327" +str(zone))
+my_cell_size = 300
+sww_file = sww_file_base_name + '.sww'
+my_time_step='max'
+output_quantity = 'depth'
+output_quantities = [output_quantity]
+output_dir='.'
+anuga.utilities.plot_utils.Make_Geotif(swwFile=sww_file,
+                                        output_quantities=output_quantities,
+                                        myTimeStep=my_time_step, EPSG_CODE=epsg_code,
+                                         output_dir=output_dir, CellSize=my_cell_size)
+geotif_name = output_dir + '/ '+ sww_file_base_name + '_' + output_quantity + \
+              '_' + my_time_step + '.tif'
+
 
 
 
@@ -224,7 +238,8 @@ cloudUpload("${name_stem}.prj", "${name_stem}.prj")
 cloudUpload("${name_stem}.dem", "${name_stem}.dem")
 cloudUpload("${name_stem}.pts", "${name_stem}.pts")
 cloudUpload("${name_stem}.msh", "${name_stem}.msh")
-cloudUpload("${name_stem}_fixed_wave.sww", "${name_stem}_fixed_wave.sww")
+cloudUpload(sww_file, sww_file)
+cloudUpload(geotif_name, geotif_name)
 
 print 'If you wish to view your output - please look at anuga-viewer here: http://sourceforge.net/projects/anuga/files/'
 

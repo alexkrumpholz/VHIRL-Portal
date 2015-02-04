@@ -39,6 +39,11 @@ Ext.define('ScriptBuilder.ScriptBuilder', {
             title : 'Available Templates',
             itemId : 'sb-templates-panel',
             width : 250,
+            root : {
+                expanded: true,
+                text : "Script Builder Components",
+                children: []
+            },
             listeners : {
                 addcomponent : Ext.bind(this.onAddComponent, this)
             }
@@ -62,11 +67,12 @@ Ext.define('ScriptBuilder.ScriptBuilder', {
         this.callParent(arguments);
     },
 
-    onAddComponent : function(panel, templateClass, name, description) {
+    onAddComponent : function(panel, entry, name, description) {
         var me = this;
 
         //Create the template which will load our script
-        var template = Ext.create(templateClass, {
+        var template = Ext.create('ScriptBuilder.templates.DynamicTemplate', {
+            entry: entry,
             name : name,
             description : description,
             wizardState : me.wizardState,
@@ -75,6 +81,9 @@ Ext.define('ScriptBuilder.ScriptBuilder', {
         template.requestScript(function(status, script) {
             //Once we have the script text - ask the user what they want to do with it
             if (status === ScriptBuilder.templates.BaseTemplate.TEMPLATE_RESULT_SUCCESS) {
+                // Store the selected solution
+                me.setSolution(entry);
+
                 //If there's nothing in the window - just put text in there
                 if (me.getScript().length === 0) {
                     me.replaceScript(script);
@@ -105,8 +114,14 @@ Ext.define('ScriptBuilder.ScriptBuilder', {
      * Builds components panel with selected toolbox
      */
     buildComponentsPanel : function(selectedToolbox) {
-        var comps = ScriptBuilder.Components.getComponents(selectedToolbox);
-        this.componentsPanel.setRootNode(comps);
+        // Populate the panel after retrieving the templates
+        var self = this;
+        ScriptBuilder.Components.getComponents(
+            this.componentsPanel,
+            function() {
+                // If a solution is currently active, select it
+                self.selectSolution();
+            });
     },
 
     /**
@@ -135,5 +150,33 @@ Ext.define('ScriptBuilder.ScriptBuilder', {
 
     getScript : function() {
         return this.sourceText.getValue();
+    },
+
+    getSolutionId: function() {
+        return this.wizardState.solutionId;
+    },
+
+    setSolution: function(solution) {
+        // Store the solution information and select corresponding node
+        this.solution = solution;
+        this.setSolutionId(solution.uri);
+    },
+
+    setSolutionId: function(solutionId) {
+        this.wizardState.solutionId = solutionId;
+        this.selectSolution();
+    },
+
+    // Select the node corresponding to the current solution
+    selectSolution: function() {
+        if (!Ext.isEmpty(this.wizardState.solutionId)) {
+            var solutionChild = this
+                    .componentsPanel
+                    .getRootNode()
+                    .findChild('id', this.wizardState.solutionId, true);
+            if (solutionChild) {
+                this.componentsPanel.selectPath(solutionChild.getPath());
+            }
+        }
     }
 });
